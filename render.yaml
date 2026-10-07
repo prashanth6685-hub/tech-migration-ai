@@ -37,10 +37,9 @@ services:
       - key: OPENAI_EMBEDDING_MODEL
         value: text-embedding-3-small
       - key: FRONTEND_URL
-        fromService:
-          type: web
-          name: tech-migration-ai-frontend
-          property: host
+        # Explicit public URL: fromService "host" returns the internal-only
+        # service name, which browsers can't resolve and CORS won't match.
+        value: https://tech-migration-ai-frontend.onrender.com
 
   # --- Frontend: Next.js ---------------------------------------------------
   - type: web
@@ -55,7 +54,7 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: NEXT_PUBLIC_API_URL
-        fromService:
-          type: web
-          name: tech-migration-ai-backend
-          property: host # bare host; frontend/app/lib/api.ts adds https://
+        # Explicit public URL (baked into the client bundle at build time).
+        # fromService "host" returns the internal-only service name, which
+        # browsers can't resolve — hence the "backend unreachable" badge.
+        value: https://tech-migration-ai-backend.onrender.com
