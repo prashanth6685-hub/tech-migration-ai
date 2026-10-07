@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 import type { Catalog } from "../components/tech-picker";
 import { TechPicker } from "../components/tech-picker";
+import type { Citation } from "../components/grounding-badge";
+import { GroundingBadge } from "../components/grounding-badge";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -26,6 +28,8 @@ interface CodeConversion {
   modern_target: string;
   equivalence: Equivalence;
   explanation: ConversionExplanation;
+  sources: Citation[];
+  grounded: boolean;
 }
 
 const EQUIV_LABEL: Record<Equivalence, string> = {
@@ -264,6 +268,7 @@ export default function ConvertPage() {
                 {tgtVer ? ` ${tgtVer}` : ""}
               </strong>
               <EquivalenceBadge value={result.equivalence} />
+              <GroundingBadge grounded={result.grounded} sources={result.sources} />
             </div>
             <CodeBlock title="1. Original" code={result.source_code} />
             <CodeBlock title="2. Direct translation" code={result.direct_translation} />

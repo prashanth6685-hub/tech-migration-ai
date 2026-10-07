@@ -92,6 +92,25 @@ body {
   background: #f3f4f6;
 }
 
+.sources-details {
+  display: inline;
+  margin-left: 0.4rem;
+}
+
+.sources-details summary {
+  display: inline;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.sources-details ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+  text-align: left;
+  font-weight: 400;
+  white-space: normal;
+}
+
 .clear-btn {
   font-size: 0.8rem;
   font-weight: 600;
@@ -539,4 +558,18 @@ body {
 
 .expl-list li {
   margin-bottom: 0.35em;
+}
+
+.site-footer {
+  max-width: 72rem;
+  margin: 2.5rem auto 1.5rem;
+  padding: 1rem 1.25rem 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.site-footer a {
+  color: inherit;
+  font-weight: 600;
 }

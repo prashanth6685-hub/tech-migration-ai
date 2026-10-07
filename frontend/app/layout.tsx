@@ -21,6 +21,10 @@ export default function RootLayout({
           <a href="/learn">🎓 Learn</a>
         </nav>
         {children}
+        <footer className="site-footer">
+          <a href="/admin/knowledge">📚 Knowledge base</a>
+          <span className="muted"> — ingest official docs to ground answers</span>
+        </footer>
       </body>
     </html>
   );

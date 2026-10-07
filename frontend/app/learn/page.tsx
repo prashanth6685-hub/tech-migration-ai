@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import type { Catalog } from "../components/tech-picker";
 import { TechPicker } from "../components/tech-picker";
 import { renderMarkdown } from "../components/markdown";
+import type { Citation } from "../components/grounding-badge";
+import { GroundingBadge } from "../components/grounding-badge";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const PROFILE_KEY = "tmai-learn-profile";
@@ -49,6 +51,8 @@ interface Lesson {
   idiomatic_target: string;
   new_capabilities: string[];
   production_notes: string;
+  sources: Citation[];
+  grounded: boolean;
 }
 
 interface Exercise {
@@ -581,6 +585,10 @@ export default function LearnPage() {
                 <span className="muted">
                   for a {knownList || "developer"} developer
                 </span>
+                <GroundingBadge
+                  grounded={lesson.grounded}
+                  sources={lesson.sources}
+                />
               </div>
               <div className="suggestion-row">
                 {LEVELS.map((l) => (

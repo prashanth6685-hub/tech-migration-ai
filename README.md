@@ -1,4 +1,4 @@
-# Tech Migration AI — Phase 4: Personalized Learning
+# Tech Migration AI — Phase 5: Documentation / RAG
 
 An AI migration and learning companion that understands what you already know.
 Phase 1 shipped a streaming chat UI (Next.js → FastAPI → local Ollama LLM).
@@ -15,12 +15,14 @@ Postgres + Qdrant (defined, idle until later phases) · Docker Compose.
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for the stack)
 - [Ollama](https://ollama.com/download) (for the free local LLM)
 
-### 2. Pull a coding-capable model
+### 2. Pull the models
 ```bash
-ollama pull qwen2.5-coder:14b
+ollama pull qwen2.5-coder:14b   # coding-capable chat model
+ollama pull nomic-embed-text    # embedding model for Phase 5 RAG
 ```
-Any Ollama model works — the name is just config (`OLLAMA_MODEL`). A 7B model
-(e.g. `qwen2.5-coder:7b`) runs on 16 GB RAM if the 14B is too heavy.
+Any Ollama model works — the names are just config (`OLLAMA_MODEL`,
+`EMBEDDING_MODEL`). A 7B coder (e.g. `qwen2.5-coder:7b`) runs on 16 GB RAM
+if the 14B is too heavy.
 
 ### 3. Start everything
 ```bash
@@ -195,11 +197,61 @@ goal = "become productive" → expect a path with a "Java → C# differences"
 module; open the LINQ topic at level 3 → expect Streams contrast; submit an
 exercise solution → expect a structured review.
 
+## Phase 5: documentation RAG (grounded answers)
+
+Answers can now be grounded in official documentation you ingest. The pipeline
+is fully local and free: embeddings via Ollama (`nomic-embed-text`), vectors
+in Qdrant (falls back to an in-memory store when Qdrant is down).
+
+**How it works**
+1. **Ingest** — open http://localhost:3000/admin/knowledge (footer link:
+   "Knowledge base"). Paste official doc URLs (one per line), pick the
+   technology + version and the document type, hit **Ingest**. Pages are
+   fetched, cleaned to main content, split into ~500-token chunks (fenced code
+   blocks are never split), embedded locally, and upserted into a
+   per-tech-version collection (`docs_c_net_8`, `docs_java_17`, …).
+   Re-ingesting a URL replaces its chunks — never duplicates.
+2. **Retrieve** — `/compare/concept`, `/convert`, and `/learn/topic` accept
+   `ground: true` (default). They embed the query, vector-search the target
+   tech's collection with mandatory version filtering, and inject the chunks
+   as "RETRIEVED DOCUMENTATION" context. The model must cite the chunks it
+   uses (`sources[]` with exact URLs — never invented) and the response
+   carries `grounded: true`.
+3. **Badges** — result views show 📚 "Grounded in official docs (n sources)"
+   with expandable source links, or ⚠️ "From model knowledge — not yet
+   grounded" when the knowledge base is empty. If retrieval finds nothing,
+   the request still succeeds — it just answers ungrounded (fail-closed).
+
+**Seed the knowledge base** (official docs only):
+```bash
+ollama pull nomic-embed-text
+docker compose up -d qdrant        # or the full stack
+cd backend && python -m scripts.seed_knowledge
+```
+This ingests the C# tour, EF Core, ASP.NET Core fundamentals (Microsoft
+Learn), the Java Tutorials (Oracle), and the Python Tutorial (python.org).
+
+API:
+- `POST /api/knowledge/ingest` — `{items:[{url}|{title,markdown}],
+  tech, version?, doc_type: official|guide|api_reference}` →
+  `{collection, chunks_ingested, items, errors[]}`.
+- `GET /api/knowledge/collections` — `[{name, chunks}]`.
+- `DELETE /api/knowledge/collections/{name}` — drops one `docs_*` collection.
+
+Swapping pieces: `Embedder` (`rag/embeddings.py`) and `VectorStore`
+(`rag/vector_store.py`) are interfaces — a new embedding model or vector DB
+is a new implementation, not a rewrite. Chunk hashes make re-ingestion
+idempotent; chunk payloads store the embedding model name so re-embedding
+is a migration, not a rewrite.
+
+Try the acceptance flow: ingest a docs URL → compare Java 17 → C# .NET 8 on
+`CompletableFuture` → expect cited sources + the 📚 badge; with an empty
+knowledge base → expect the ⚠️ ungrounded badge.
+
 ## What's coming next
 
-Phase 5 — RAG over official docs (ingestion, embeddings, vector DB, hybrid
-retrieval, citations).
-Then: repository analysis (Phase 6), automated migration with human approval
-(Phase 7).
+Phase 6 — repository analysis (ZIP upload, tech detection, structured
+migration report, readiness scores). Phase 7 — automated migration with
+human approval (file-by-file conversion, test generation, approval queue).
 
 See the full plan: `~/workspace/your_files/tech-migration-ai-plan/tech-migration-ai-plan.pdf`.

@@ -14,6 +14,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from domain.schemas import GroundedMixin
 from llm.prompts import (
     EQUIVALENCE_GRADES,
     GOAL_DESCRIPTIONS,
@@ -26,6 +27,9 @@ from llm.prompts import (
 )
 from llm.provider import AIProvider, get_provider
 from llm.structured import StructuredOutputError, generate_json
+from rag.embeddings import Embedder, get_embedder
+from rag.grounding import citations_for, ground_task
+from rag.vector_store import VectorStore, get_vector_store
 
 router = APIRouter()
 
@@ -121,9 +125,13 @@ class LearnTopicRequest(BaseModel):
     target_version: Optional[str] = Field(default=None, max_length=40)
     topic: str = Field(min_length=1, max_length=160)
     level: Literal[1, 2, 3, 4]
+    ground: bool = Field(
+        default=True,
+        description="Retrieve official docs for the target tech and ground the answer.",
+    )
 
 
-class Lesson(BaseModel):
+class Lesson(GroundedMixin):
     topic: str
     level: int
     level_name: str
@@ -139,7 +147,10 @@ class Lesson(BaseModel):
 
 @router.post("/learn/topic", response_model=Lesson)
 async def learn_topic(
-    req: LearnTopicRequest, provider: AIProvider = Depends(get_provider)
+    req: LearnTopicRequest,
+    provider: AIProvider = Depends(get_provider),
+    embedder: Embedder = Depends(get_embedder),
+    store: VectorStore = Depends(get_vector_store),
 ) -> Lesson:
     known_list = ", ".join(t.name for t in req.known)
     task = LEARN_TOPIC_TEMPLATE.format(
@@ -150,16 +161,28 @@ async def learn_topic(
         level=req.level,
         level_name=LEVEL_NAMES[req.level],
     )
+    grounding_block, chunks = await ground_task(
+        query=f"{req.target_tech} {req.target_version or ''} {req.topic}".strip(),
+        tech=req.target_tech,
+        version=req.target_version,
+        ground=req.ground,
+        embedder=embedder,
+        store=store,
+    )
+    task += grounding_block
     try:
         lesson = await generate_json(provider, SYSTEM_PROMPT, task, Lesson)
         lesson.level = req.level
         lesson.level_name = LEVEL_NAMES[req.level]
-        return lesson
     except StructuredOutputError as exc:
         raise HTTPException(
             status_code=502,
             detail={"error": str(exc), "raw": exc.raw_text[:4000]},
         )
+    lesson.grounded = bool(chunks)
+    if not lesson.sources:
+        lesson.sources = citations_for(chunks)
+    return lesson
 
 
 # ---------------------------------------------------------------------------

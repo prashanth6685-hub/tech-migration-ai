@@ -14,6 +14,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from domain.schemas import GroundedMixin
 from llm.prompts import (
     CODE_COMPARE_TEMPLATE,
     CONCEPT_COMPARE_TEMPLATE,
@@ -23,6 +24,9 @@ from llm.prompts import (
 )
 from llm.provider import AIProvider, get_provider
 from llm.structured import StructuredOutputError, generate_json
+from rag.embeddings import Embedder, get_embedder
+from rag.grounding import citations_for, ground_task
+from rag.vector_store import VectorStore, get_vector_store
 
 router = APIRouter()
 
@@ -60,9 +64,13 @@ class ConceptCompareRequest(BaseModel):
     target_tech: str = Field(min_length=1, max_length=80)
     target_version: Optional[str] = Field(default=None, max_length=40)
     concept: str = Field(min_length=1, max_length=200)
+    ground: bool = Field(
+        default=True,
+        description="Retrieve official docs for the target tech and ground the answer.",
+    )
 
 
-class ConceptComparison(BaseModel):
+class ConceptComparison(GroundedMixin):
     source_technology: str
     target_technology: str
     concept: str
@@ -81,7 +89,10 @@ def _ver(v: Optional[str]) -> str:
 
 @router.post("/compare/concept", response_model=ConceptComparison)
 async def compare_concept(
-    req: ConceptCompareRequest, provider: AIProvider = Depends(get_provider)
+    req: ConceptCompareRequest,
+    provider: AIProvider = Depends(get_provider),
+    embedder: Embedder = Depends(get_embedder),
+    store: VectorStore = Depends(get_vector_store),
 ) -> ConceptComparison:
     task = CONCEPT_COMPARE_TEMPLATE.format(
         source_tech=req.source_tech,
@@ -91,13 +102,27 @@ async def compare_concept(
         concept=req.concept,
         EQUIVALENCE_GRADES=EQUIVALENCE_GRADES,  # grades ship inside the template already
     )
+    # Ground the recommendation in the target technology's official docs.
+    grounding_block, chunks = await ground_task(
+        query=f"{req.target_tech} {req.target_version or ''} {req.concept}".strip(),
+        tech=req.target_tech,
+        version=req.target_version,
+        ground=req.ground,
+        embedder=embedder,
+        store=store,
+    )
+    task += grounding_block
     try:
-        return await generate_json(provider, SYSTEM_PROMPT, task, ConceptComparison)
+        result = await generate_json(provider, SYSTEM_PROMPT, task, ConceptComparison)
     except StructuredOutputError as exc:
         raise HTTPException(
             status_code=502,
             detail={"error": str(exc), "raw": exc.raw_text[:4000]},
         )
+    result.grounded = bool(chunks)
+    if not result.sources:
+        result.sources = citations_for(chunks)
+    return result
 
 
 # ---------------------------------------------------------------------------

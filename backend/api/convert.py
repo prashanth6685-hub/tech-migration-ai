@@ -11,9 +11,13 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from domain.schemas import GroundedMixin
 from llm.prompts import CODE_CONVERT_TEMPLATE, EQUIVALENCE_GRADES, SYSTEM_PROMPT
 from llm.provider import AIProvider, get_provider
 from llm.structured import StructuredOutputError, generate_json
+from rag.embeddings import Embedder, get_embedder
+from rag.grounding import citations_for, ground_task
+from rag.vector_store import VectorStore, get_vector_store
 
 router = APIRouter()
 
@@ -31,6 +35,10 @@ class ConvertRequest(BaseModel):
         max_length=80,
         description="Optional context such as 'spring-controller' or 'junit-test'.",
     )
+    ground: bool = Field(
+        default=True,
+        description="Retrieve official docs for the target tech and ground the answer.",
+    )
 
 
 class ConversionExplanation(BaseModel):
@@ -46,7 +54,7 @@ class ConversionExplanation(BaseModel):
     )
 
 
-class CodeConversion(BaseModel):
+class CodeConversion(GroundedMixin):
     source_code: str
     direct_translation: str
     idiomatic_target: str
@@ -61,7 +69,10 @@ def _ver(v: Optional[str]) -> str:
 
 @router.post("/convert", response_model=CodeConversion)
 async def convert_code(
-    req: ConvertRequest, provider: AIProvider = Depends(get_provider)
+    req: ConvertRequest,
+    provider: AIProvider = Depends(get_provider),
+    embedder: Embedder = Depends(get_embedder),
+    store: VectorStore = Depends(get_vector_store),
 ) -> CodeConversion:
     style_hint_line = (
         f"Style hint (the code is a {req.style_hint}; honor its conventions): {req.style_hint}"
@@ -77,10 +88,27 @@ async def convert_code(
         source_code=req.source_code,
         EQUIVALENCE_GRADES=EQUIVALENCE_GRADES,
     )
+    # Ground the conversion in the target technology's official docs.
+    grounding_block, chunks = await ground_task(
+        query=(
+            f"Convert {req.source_tech} to {req.target_tech} "
+            f"{req.target_version or ''}: {req.source_code[:400]}"
+        ).strip(),
+        tech=req.target_tech,
+        version=req.target_version,
+        ground=req.ground,
+        embedder=embedder,
+        store=store,
+    )
+    task += grounding_block
     try:
-        return await generate_json(provider, SYSTEM_PROMPT, task, CodeConversion)
+        result = await generate_json(provider, SYSTEM_PROMPT, task, CodeConversion)
     except StructuredOutputError as exc:
         raise HTTPException(
             status_code=502,
             detail={"error": str(exc), "raw": exc.raw_text[:4000]},
         )
+    result.grounded = bool(chunks)
+    if not result.sources:
+        result.sources = citations_for(chunks)
+    return result

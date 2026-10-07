@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { renderMarkdown } from "../components/markdown";
 import type { Catalog } from "../components/tech-picker";
 import { TechPicker } from "../components/tech-picker";
+import type { Citation } from "../components/grounding-badge";
+import { GroundingBadge } from "../components/grounding-badge";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -21,6 +23,8 @@ interface ConceptComparison {
   target_specific_improvement: string;
   common_migration_problem: string;
   recommended_approach: string;
+  sources: Citation[];
+  grounded: boolean;
 }
 
 interface MappingRow {
@@ -261,6 +265,10 @@ export default function ComparePage() {
                 {conceptResult.target_technology}
               </strong>
               <EquivalenceBadge value={conceptResult.equivalence} />
+              <GroundingBadge
+                grounded={conceptResult.grounded}
+                sources={conceptResult.sources}
+              />
             </div>
             <div className="grid-2">
               <div>
