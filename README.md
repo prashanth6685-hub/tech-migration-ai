@@ -1,4 +1,4 @@
-# Tech Migration AI — Phase 2: Technology Comparison
+# Tech Migration AI — Phase 3: Code Conversion
 
 An AI migration and learning companion that understands what you already know.
 Phase 1 shipped a streaming chat UI (Next.js → FastAPI → local Ollama LLM).
@@ -100,7 +100,9 @@ Covers: provider contract (token order, system prompt, ping true/false),
 factory defaults and invalid config, chat SSE streaming, error events,
 request validation, `/api/health`, comparison endpoints (validated JSON
 schema, retry-once path, 502-with-raw path on persistent failure, 422s),
-and the tech catalog contents.
+the tech catalog contents, and the `/api/convert` endpoint (all four blocks
++ explanation schema, style hint propagation, no-ellipsis rule in the prompt,
+502 and 422 paths).
 
 Frontend: `npm run build` (type-check + production build) must pass.
 
@@ -113,12 +115,43 @@ The `AIProvider` interface is the seam: add new providers in
 `backend/llm/provider.py` without touching business logic. `OpenAIProvider`
 is currently a stub that raises until keys are configured.
 
+## Phase 3: convert code
+
+Open http://localhost:3000/convert (top nav: 🔄 Convert). Pick source and
+target languages (+ versions) from the catalog (or free-text via "Other…"),
+optionally add a style hint (`spring-controller`, `junit-test`, …), and paste
+code — or hit 💡 to load the spec's Java → C# employee-filter example. You get:
+
+1. **Original** — your code, unchanged.
+2. **Direct translation** — the closest equivalent preserving structure.
+3. **Idiomatic target** — how an experienced developer would write it
+   (e.g. LINQ instead of a `foreach` loop).
+4. **Modern target** — newer target features (records, pattern matching,
+   collection expressions, …), only when genuinely better; otherwise it
+   matches the idiomatic version and the explanation says why.
+5. **Explanation** — what changed, why, what the target does differently,
+   new capabilities, performance notes, common mistakes — plus an
+   honestly-graded equivalence badge.
+
+Each block has a one-tap copy button. If the model returns invalid JSON, the
+UI shows the raw text and a retry hint.
+
+API: `POST /api/convert` —
+`{source_tech, source_version?, target_tech, target_version?, source_code,
+style_hint?}` → `{source_code, direct_translation, idiomatic_target,
+modern_target, equivalence, explanation:{what_changed[], why_changed[],
+target_differences, new_capabilities[], performance_notes,
+common_mistakes[], modern_note}}`.
+
+Hard prompt rules: all four blocks must be complete, compilable-in-principle
+code — never `...` placeholders; never invent APIs; preserve behavior;
+respect the target version; flag constructs with no direct equivalent.
+
 ## What's coming next
 
-Phase 3 — code conversion: paste code, pick a pair, get the four-block
-conversion (original / direct / idiomatic / modern) plus explanation.
-Then: personalized learning (Phase 4), RAG over official docs (Phase 5),
-repository analysis (Phase 6), automated migration with human approval
-(Phase 7).
+Phase 4 — personalized learning: existing/target tech, skill level, goals,
+curriculum, exercises, knowledge tracking.
+Then: RAG over official docs (Phase 5), repository analysis (Phase 6),
+automated migration with human approval (Phase 7).
 
 See the full plan: `~/workspace/your_files/tech-migration-ai-plan/tech-migration-ai-plan.pdf`.

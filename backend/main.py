@@ -1,9 +1,10 @@
-"""Tech Migration AI backend — Phase 1: FastAPI + Ollama chat."""
+"""Tech Migration AI backend — Phase 3: FastAPI + Ollama chat, comparison, conversion."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.chat import router as chat_router
 from api.compare import router as compare_router
+from api.convert import router as convert_router
 
 
 def create_app() -> FastAPI:
@@ -19,10 +20,11 @@ def create_app() -> FastAPI:
 
     app.include_router(chat_router, prefix="/api")
     app.include_router(compare_router, prefix="/api")
+    app.include_router(convert_router, prefix="/api")
 
     @app.get("/")
     async def root():
-        return {"service": "tech-migration-ai", "phase": 1, "status": "ok"}
+        return {"service": "tech-migration-ai", "phase": 3, "status": "ok"}
 
     return app
 

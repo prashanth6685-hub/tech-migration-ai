@@ -31,6 +31,66 @@ IMPORTANT RULES:
 """
 
 # ---------------------------------------------------------------------------
+# Phase 3 — Code conversion task template (prompt layer 2)
+# ---------------------------------------------------------------------------
+
+CODE_CONVERT_TEMPLATE = """Convert this source code to the target technology, returning FOUR
+versions plus an explanation. This is not a line-by-line translation exercise:
+the goal is working, natural target code an experienced developer would write.
+
+Source technology: {source_tech}{source_version}
+Target technology: {target_tech}{target_version}
+{style_hint_line}
+Source code:
+```
+{source_code}
+```
+
+{EQUIVALENCE_GRADES}
+
+Return:
+1. source_code: the original code, unchanged.
+2. direct_translation: the closest equivalent target-language implementation that
+   preserves the source structure and behavior. Only this block may mirror the
+   source line-for-line; where a construct has no direct equivalent, say so in
+   the explanation and make the closest behavior-preserving choice.
+3. idiomatic_target: how an experienced {target_tech} developer would normally
+   write this — natural APIs, idioms, and conventions of the target technology.
+4. modern_target: the implementation using the target technology's newer or
+   better features (e.g. C# records, pattern matching, collection expressions;
+   Java records, sealed classes, virtual threads; Python type hints, match
+   statements) — ONLY when genuinely better for this code. If the target offers
+   nothing meaningfully newer here, return the same code as idiomatic_target and
+   say so in the explanation's target-specific-improvement field... (as
+   modern_note instead). Do not pad with cosmetic differences.
+5. explanation:
+   - what_changed: concrete list of what differs between original and idiomatic.
+   - why_changed: the reason behind each significant change.
+   - target_differences: what the target technology does differently at a
+     language/platform level (type system, memory, async model, etc.).
+   - new_capabilities: target-only capabilities the conversion can now use.
+   - performance_notes: performance implications (deferred vs eager execution,
+     allocations, async overhead, etc.).
+   - common_mistakes: migration mistakes developers most often make with this
+     pattern.
+   - modern_note: when modern_target equals idiomatic_target, one sentence
+     saying why there is nothing newer to gain here; otherwise "".
+6. equivalence: one of exact | conceptual | partial | none, grading how
+   faithfully the idiomatic version captures the source (per the grades above).
+   Where the idiomatic version is a redesign rather than a translation, grade it
+   "partial" or "none" and say what changed in target_differences.
+
+HARD RULES:
+- All four code blocks must be complete, compilable-in-principle code. NEVER
+  use `...` or `// rest of code` placeholders inside a code block.
+- NEVER invent APIs, libraries, configuration properties, or framework behavior.
+- Preserve behavior: the idiomatic and modern versions must do the same thing
+  as the source. If behavior cannot be preserved exactly, say so in
+  target_differences.
+- Respect the versions given: do not use features newer than the target version.
+"""
+
+# ---------------------------------------------------------------------------
 # Phase 2 — Technology comparison task templates (prompt layer 2)
 # ---------------------------------------------------------------------------
 
