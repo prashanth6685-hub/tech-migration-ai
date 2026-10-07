@@ -6,6 +6,7 @@ import type { Catalog } from "../components/tech-picker";
 import { TechPicker } from "../components/tech-picker";
 import type { Citation } from "../components/grounding-badge";
 import { GroundingBadge } from "../components/grounding-badge";
+import { ReviewSection } from "./review";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -618,7 +619,8 @@ export default function MigratePage() {
             )}
           </section>
 
-          {/* Phase 7 hooks the file-by-file review UI in here. */}
+          {/* Phase 7: file-by-file review with human approval. */}
+          {project && <ReviewSection projectId={project.project_id} />}
         </>
       )}
     </div>

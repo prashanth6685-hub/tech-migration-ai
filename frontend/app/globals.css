@@ -684,3 +684,26 @@ body {
 .phase-list p {
   margin: 0.25rem 0 0;
 }
+
+/* Phase 7: approval review */
+.warn-box {
+  border: 1px solid #f59e0b;
+  background: #fffbeb;
+  border-radius: 0.6rem;
+  padding: 0.7rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.decision-row {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.decision-row .send-btn {
+  width: auto;
+  padding-left: 1.4rem;
+  padding-right: 1.4rem;
+}

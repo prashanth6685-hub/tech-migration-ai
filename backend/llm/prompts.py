@@ -1,6 +1,43 @@
 """Prompt layers. Layer 1 (system) is fixed; task templates get added in later phases."""
 
 # ---------------------------------------------------------------------------
+# Phase 7 — Test generation task template (prompt layer 2)
+# ---------------------------------------------------------------------------
+
+TEST_GENERATE_TEMPLATE = """Write tests for converted code, in the target technology's test framework.
+
+Target technology: {target_tech}{target_version}
+Test framework: {framework}
+
+The original source file ({source_tech}):
+```
+{original}
+```
+
+The converted {target_tech} code under test:
+```
+{proposed}
+```
+
+Return JSON:
+1. test_code: a COMPLETE test file in {framework} that tests the converted
+   code's behavior — real test cases (happy path, edge cases, error cases),
+   not a skeleton. Complete code, no `...` placeholders.
+2. framework: the test framework used (should match {framework}).
+3. notes: one or two sentences on what the tests cover and any behavior that
+   could not be tested.
+
+HARD RULES:
+- NEVER invent APIs, libraries, or framework behavior. Test against the
+  converted code shown above, not an imagined API.
+- Tests must be compilable-in-principle: correct imports, real assertions
+  from {framework}.
+- If the converted code has behavior you cannot verify from what is shown,
+  say so in notes instead of guessing.
+"""
+
+
+# ---------------------------------------------------------------------------
 # Phase 6 — Migration report task template (prompt layer 2)
 # ---------------------------------------------------------------------------
 

@@ -341,3 +341,213 @@ def test_analyze_unknown_project_404():
     resp = client.post("/api/migration/analyze",
                        json={**_ANALYZE_BODY, "project_id": "missing1"})
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 — file conversion, approval, tests, download
+# ---------------------------------------------------------------------------
+
+CONVERSION_JSON = {
+    "source_code": APP_JAVA,
+    "direct_translation": "// direct C# translation\nvar app = 1;",
+    "idiomatic_target": "// idiomatic C#\nConsole.WriteLine(\"hello\");",
+    "modern_target": "// idiomatic C#\nConsole.WriteLine(\"hello\");",
+    "equivalence": "conceptual",
+    "explanation": {
+        "what_changed": ["Spring Boot app -> top-level statements"],
+        "why_changed": ["C# idiom"],
+        "target_differences": "No DI container bootstrapping.",
+        "new_capabilities": [],
+        "performance_notes": "",
+        "common_mistakes": [],
+        "modern_note": "Nothing newer applies.",
+    },
+}
+
+TESTS_JSON = {
+    "test_code": "using Xunit;\npublic class WidgetTests {\n"
+                 "  [Fact] public void Test1() { Assert.True(true); }\n}",
+    "framework": "xUnit",
+    "notes": "Covers the happy path.",
+}
+
+
+class _SeqProvider(AIProvider):
+    """Yields canned responses in order; counts calls."""
+
+    name = "fake"
+    model = "fake-model"
+
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self.calls = 0
+
+    async def chat_stream(self, messages, system=None):
+        self.calls += 1
+        yield self._responses[min(self.calls - 1, len(self._responses) - 1)]
+
+    async def ping(self):
+        return True
+
+
+def _analyzed_client(spring_zip, responses):
+    """Upload + analyze a project; return (client, project_id)."""
+    provider = _SeqProvider(responses)
+    client = _client(provider)
+    project_id = _upload(client, spring_zip).json()["project_id"]
+    resp = client.post("/api/migration/analyze",
+                       json={**_ANALYZE_BODY, "project_id": project_id})
+    assert resp.status_code == 200, resp.text
+    return client, project_id, provider
+
+
+SRC_PATH = "src/main/java/com/example/DemoApplication.java"
+
+
+def test_convert_file_flow_and_idempotent(spring_zip):
+    client, project_id, provider = _analyzed_client(
+        spring_zip, [json.dumps(REPORT_JSON), json.dumps(CONVERSION_JSON)]
+    )
+    try:
+        # Files list shows convertible sources as untouched.
+        files = client.get(f"/api/migration/{project_id}/files").json()
+        paths = {f["path"]: f for f in files}
+        assert SRC_PATH in paths
+        assert paths[SRC_PATH]["status"] == "untouched"
+        assert paths[SRC_PATH]["language"] == "Java"
+
+        resp = client.post("/api/migration/convert-file",
+                           json={"project_id": project_id, "path": SRC_PATH})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["status"] == "pending"
+        assert body["proposed"] == "// idiomatic C#\nConsole.WriteLine(\"hello\");"
+        assert body["risk"] in ("low", "medium", "high")
+        assert body["risk_why"]
+        assert isinstance(body["warnings"], list)
+
+        # Second call is idempotent — no extra LLM call.
+        calls_before = provider.calls
+        resp2 = client.post("/api/migration/convert-file",
+                            json={"project_id": project_id, "path": SRC_PATH})
+        assert resp2.status_code == 200
+        assert provider.calls == calls_before
+
+        files = client.get(f"/api/migration/{project_id}/files").json()
+        assert {f["path"]: f for f in files}[SRC_PATH]["status"] == "pending"
+    finally:
+        _cleanup(project_id)
+
+
+def test_convert_file_rejects_bad_paths(spring_zip):
+    client, project_id, _ = _analyzed_client(
+        spring_zip, [json.dumps(REPORT_JSON), json.dumps(CONVERSION_JSON)]
+    )
+    try:
+        # Non-convertible manifest.
+        resp = client.post("/api/migration/convert-file",
+                           json={"project_id": project_id, "path": "pom.xml"})
+        assert resp.status_code == 400
+        # Traversal attempt.
+        resp = client.post("/api/migration/convert-file",
+                           json={"project_id": project_id, "path": "../../evil.java"})
+        assert resp.status_code in (400, 404)
+        # Missing file.
+        resp = client.post("/api/migration/convert-file",
+                           json={"project_id": project_id, "path": "nope.java"})
+        assert resp.status_code == 404
+        # Unknown project.
+        resp = client.post("/api/migration/convert-file",
+                           json={"project_id": "missing1", "path": SRC_PATH})
+        assert resp.status_code == 404
+    finally:
+        _cleanup(project_id)
+
+
+def test_heuristic_warnings_flag_placeholders(spring_zip):
+    bad = dict(CONVERSION_JSON)
+    bad["idiomatic_target"] = "public class X {\n  // ... rest of code\n"
+    client, project_id, _ = _analyzed_client(
+        spring_zip, [json.dumps(REPORT_JSON), json.dumps(bad)]
+    )
+    try:
+        body = client.post(
+            "/api/migration/convert-file",
+            json={"project_id": project_id, "path": SRC_PATH},
+        ).json()
+        assert any("placeholder" in w for w in body["warnings"])
+        assert body["risk"] == "high"
+    finally:
+        _cleanup(project_id)
+
+
+def test_approve_reject_and_download_roundtrip(spring_zip):
+    client, project_id, _ = _analyzed_client(
+        spring_zip,
+        [json.dumps(REPORT_JSON), json.dumps(CONVERSION_JSON),
+         json.dumps(CONVERSION_JSON), json.dumps(TESTS_JSON)],
+    )
+    try:
+        other = "src/main/java/com/example/Widget.java"
+        client.post("/api/migration/convert-file",
+                    json={"project_id": project_id, "path": SRC_PATH})
+        client.post("/api/migration/convert-file",
+                    json={"project_id": project_id, "path": other})
+
+        # Approve one, reject the other.
+        r = client.post("/api/migration/approve",
+                        json={"project_id": project_id, "path": SRC_PATH,
+                              "approved": True}).json()
+        assert r["status"] == "approved"
+        r = client.post("/api/migration/approve",
+                        json={"project_id": project_id, "path": other,
+                              "approved": False, "note": "hand-write this one"}).json()
+        assert r["status"] == "rejected"
+
+        # Approved file lands in the migrated tree; source untouched.
+        migrated = PROJECTS_DIR / project_id / "migrated" / SRC_PATH
+        assert migrated.is_file()
+        assert "Console.WriteLine" in migrated.read_text()
+        assert not (PROJECTS_DIR / project_id / "migrated" / other).exists()
+        src_original = PROJECTS_DIR / project_id / "src" / SRC_PATH
+        assert "SpringApplication" in src_original.read_text()
+
+        # Generate + approve tests for the converted file.
+        gen = client.post(
+            "/api/migration/generate-tests",
+            json={"project_id": project_id, "path": SRC_PATH},
+        ).json()
+        assert gen["framework"] == "xUnit"
+        assert gen["status"] == "pending"
+        assert gen["path"] == "tests/DemoApplication_test.cs"
+        client.post("/api/migration/approve",
+                    json={"project_id": project_id, "path": gen["path"],
+                          "approved": True})
+
+        # Download ZIP contains exactly the approved outputs.
+        resp = client.get(f"/api/migration/{project_id}/download")
+        assert resp.status_code == 200
+        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        names = zf.namelist()
+        assert SRC_PATH in names
+        assert "tests/DemoApplication_test.cs" in names
+        assert other not in names
+        assert "Xunit" in zf.read("tests/DemoApplication_test.cs").decode() or \
+               "xunit" in zf.read("tests/DemoApplication_test.cs").decode().lower()
+
+        # Approving an unknown change is a 400.
+        resp = client.post("/api/migration/approve",
+                           json={"project_id": project_id, "path": "nope.java",
+                                 "approved": True})
+        assert resp.status_code == 400
+    finally:
+        _cleanup(project_id)
+
+
+def test_download_empty_is_404(spring_zip):
+    client = _client()
+    project_id = _upload(client, spring_zip).json()["project_id"]
+    try:
+        assert client.get(f"/api/migration/{project_id}/download").status_code == 404
+    finally:
+        _cleanup(project_id)

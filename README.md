@@ -1,4 +1,4 @@
-# Tech Migration AI — Phase 6: Repository Analysis
+# Tech Migration AI — Phase 7: Automated Migration (Human Approval)
 
 An AI migration and learning companion that understands what you already know.
 Phase 1 shipped a streaming chat UI (Next.js → FastAPI → local Ollama LLM).
@@ -295,9 +295,46 @@ Java 17 / Spring Boot / Maven / JUnit / PostgreSQL detected → Analyze with
 target C# / ASP.NET Core / .NET 8 → expect a complete report with readiness
 bars and red/yellow/green issues.
 
-## What's coming next
+## Phase 7: automated migration with human approval
 
-Phase 7 — automated migration with human approval (file-by-file conversion,
-test generation, approval queue, approved-output download).
+On http://localhost:3000/migrate, after the report, section **4. Review &
+migrate** lists every convertible source file with a status pill (untouched /
+pending / approved / rejected):
 
-See the full plan: `~/workspace/your_files/tech-migration-ai-plan/tech-migration-ai-plan.pdf`.
+1. **Convert** a file → the Phase 3 engine converts it to your target stack:
+   original vs. proposed (idiomatic target) side by side, an explanation, a
+   risk badge (low/medium/high + why), and heuristic static checks —
+   unbalanced brackets, `...` placeholders, TODO stubs. These are
+   **heuristics, not a compiler**: they catch obvious problems but prove
+   nothing; review carefully.
+2. **Approve / Reject** — your decision is recorded per file. Approved files
+   are written to a separate `migrated/<project>/` tree that mirrors the
+   source layout. **Your upload is never modified, and nothing is written
+   anywhere until you approve it.** Rejecting removes a previously approved
+   output. There is no "approve all" — the approval queue is permanent.
+3. **Generate tests** — produces a test file for the converted code in the
+   target framework (xUnit for C#, JUnit for Java, pytest for Python, …),
+   which itself goes through approve/reject.
+4. **Download** — a ZIP of exactly the approved files, ready to drop into
+   the target project.
+
+API:
+- `GET /api/migration/{project_id}/files` — convertible files + statuses.
+- `POST /api/migration/convert-file` — `{project_id, path}` → `{original,
+  proposed, explanation, equivalence, risk, risk_why, warnings}` (idempotent).
+- `POST /api/migration/generate-tests` — `{project_id, path}` → test file
+  proposal for the converted code.
+- `POST /api/migration/approve` — `{project_id, path, approved, note?}` →
+  records the decision; approved output lands in `migrated/`.
+- `GET /api/migration/{project_id}/download` — ZIP of approved files.
+
+Try the acceptance flow: upload + analyze the sample project → open section
+4 → Convert a file → expect original/proposed, a risk badge, and heuristic
+warnings → Approve → expect it in the migrated tree → Download the ZIP.
+
+## What's next
+
+The seven-phase roadmap is complete. Planned follow-ups from the spec:
+Git-URL cloning, multi-project workspaces, server-side knowledge profiles,
+and the RAG `code_examples` few-shot collection. See the full plan:
+`~/workspace/your_files/tech-migration-ai-plan/tech-migration-ai-plan.pdf`.
