@@ -10,6 +10,9 @@
 # - Qdrant: won't fit the free tier. The backend falls back to the in-memory
 #   vector store automatically (health reports vector_store: memory).
 # - Ollama: see above. Local docker-compose + Ollama path is unchanged.
+# - Postgres: the app doesn't use a relational DB yet (knowledge profile is in
+#   browser localStorage, uploads live on the backend filesystem, vectors are
+#   in-memory). Omitted so the blueprint fits Render's one-free-database limit.
 
 services:
   # --- Backend: FastAPI (Docker) -----------------------------------------
@@ -38,10 +41,6 @@ services:
           type: web
           name: tech-migration-ai-frontend
           property: host
-      - key: DATABASE_URL
-        fromDatabase:
-          name: tech-migration-ai-db
-          property: connectionString
 
   # --- Frontend: Next.js ---------------------------------------------------
   - type: web
@@ -60,7 +59,3 @@ services:
           type: web
           name: tech-migration-ai-backend
           property: host # bare host; frontend/app/lib/api.ts adds https://
-
-databases:
-  - name: tech-migration-ai-db
-    plan: free
