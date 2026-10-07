@@ -19,6 +19,7 @@ export default function RootLayout({
           <a href="/compare">🔀 Compare</a>
           <a href="/convert">🔄 Convert</a>
           <a href="/learn">🎓 Learn</a>
+          <a href="/migrate">🗂️ Migrate</a>
         </nav>
         {children}
         <footer className="site-footer">

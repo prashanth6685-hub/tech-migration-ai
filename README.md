@@ -1,4 +1,4 @@
-# Tech Migration AI — Phase 5: Documentation / RAG
+# Tech Migration AI — Phase 6: Repository Analysis
 
 An AI migration and learning companion that understands what you already know.
 Phase 1 shipped a streaming chat UI (Next.js → FastAPI → local Ollama LLM).
@@ -248,10 +248,56 @@ Try the acceptance flow: ingest a docs URL → compare Java 17 → C# .NET 8 on
 `CompletableFuture` → expect cited sources + the 📚 badge; with an empty
 knowledge base → expect the ⚠️ ungrounded badge.
 
+## Phase 6: repository analysis (migration report)
+
+Open http://localhost:3000/migrate (top nav: 🗂️ Migrate).
+
+1. **Target stack** — pick where the application should go (language,
+   framework, runtime, database, ORM, testing, build, deployment). The
+   source stack is detected automatically.
+2. **Upload** — drop a ZIP of the project (max 50 MB). It is extracted with
+   path-traversal protection and size caps, scanned locally, and **never
+   executed**. You get a detected-stack summary: languages + versions (from
+   manifests like pom.xml, package.json, .csproj), frameworks, build
+   systems, databases, ORMs, test frameworks, Docker/CI, and config files.
+3. **Analyze migration** — produces the full report dashboard:
+   - **Readiness scores** — overall % plus per-area bars (code,
+     dependencies, database, security, testing, deployment, configuration).
+     Scores are computed by **deterministic rules** over the scan findings
+     (e.g. hardcoded secrets in config, EOL dependencies, missing tests);
+     the AI explains the scores but never invents the numbers.
+   - **Detected issues** — red/yellow/green, each with why it's risky, what
+     can break, the recommended solution, and how to validate.
+   - **Technology mapping** — graded source → target rows (exact /
+     conceptual / partial / none), never claiming false equivalence.
+   - **Changes by area** — breaking changes, dependencies, code,
+     configuration, database, security, testing, deployment,
+     observability, performance.
+   - **Migration phases** — the 10 incremental stages (understand →
+     human approval), plus validation and rollback strategies.
+
+API:
+- `POST /api/migration/upload` — multipart ZIP → `{project_id, file_count,
+  total_bytes, detected}` (the full `DetectedStack`).
+- `GET /api/migration/{project_id}` — project summary.
+- `POST /api/migration/analyze` — `{project_id, target_stack, ground?}` →
+  `{project_id, detected, target_stack, readiness, report}` where `report`
+  follows the plan's Appendix A schema and `readiness` is
+  `{scores:{overall, code, …}, issues:[{severity, area, title, detail}]}`.
+
+Deterministic analyzers live in `backend/analyzers/` (manifest parsing,
+content signals, scoring) — pure functions, no LLM, fully unit-tested.
+Uploaded code is treated as data: instructions embedded in a repository
+are never followed.
+
+Try the acceptance flow: ZIP a sample Spring Boot project → upload → expect
+Java 17 / Spring Boot / Maven / JUnit / PostgreSQL detected → Analyze with
+target C# / ASP.NET Core / .NET 8 → expect a complete report with readiness
+bars and red/yellow/green issues.
+
 ## What's coming next
 
-Phase 6 — repository analysis (ZIP upload, tech detection, structured
-migration report, readiness scores). Phase 7 — automated migration with
-human approval (file-by-file conversion, test generation, approval queue).
+Phase 7 — automated migration with human approval (file-by-file conversion,
+test generation, approval queue, approved-output download).
 
 See the full plan: `~/workspace/your_files/tech-migration-ai-plan/tech-migration-ai-plan.pdf`.

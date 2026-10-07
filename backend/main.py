@@ -1,5 +1,5 @@
-"""Tech Migration AI backend — Phase 5: FastAPI + Ollama chat, comparison,
-conversion, learning, and the RAG knowledge base (official docs grounding)."""
+"""Tech Migration AI backend — Phase 6: chat, comparison, conversion,
+learning, RAG knowledge base, and repository analysis with migration reports."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,6 +8,7 @@ from api.compare import router as compare_router
 from api.convert import router as convert_router
 from api.knowledge import router as knowledge_router
 from api.learn import router as learn_router
+from api.migration import router as migration_router
 
 
 def create_app() -> FastAPI:
@@ -26,10 +27,11 @@ def create_app() -> FastAPI:
     app.include_router(convert_router, prefix="/api")
     app.include_router(learn_router, prefix="/api")
     app.include_router(knowledge_router, prefix="/api")
+    app.include_router(migration_router, prefix="/api")
 
     @app.get("/")
     async def root():
-        return {"service": "tech-migration-ai", "phase": 5, "status": "ok"}
+        return {"service": "tech-migration-ai", "phase": 6, "status": "ok"}
 
     return app
 

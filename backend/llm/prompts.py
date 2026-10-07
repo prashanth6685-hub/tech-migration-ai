@@ -1,5 +1,68 @@
 """Prompt layers. Layer 1 (system) is fixed; task templates get added in later phases."""
 
+# ---------------------------------------------------------------------------
+# Phase 6 — Migration report task template (prompt layer 2)
+# ---------------------------------------------------------------------------
+
+MIGRATION_REPORT_TEMPLATE = """Analyze this REAL application for migration. The source facts below were
+produced by static analysis — treat them as ground truth, not as suggestions.
+Do NOT invent files, dependencies, or architecture the facts do not show.
+
+SOURCE APPLICATION (static-analysis facts):
+{facts}
+
+TARGET STACK:
+{target_stack}
+
+DETERMINISTIC READINESS SCORES (computed from the facts — do NOT invent
+different numbers; your job is to EXPLAIN what drives each score and what
+would raise it):
+{scores}
+
+{EQUIVALENCE_GRADES}
+
+Return the migration report as JSON with EXACTLY these fields:
+- summary: 3-5 sentences — what the application is, why migration is needed,
+  overall complexity and risk.
+- migrationDifficulty: one of Low | Medium | High.
+- overallRisk: one of Low | Medium | High.
+- technologyMapping: rows {{source, target, equivalence, notes}} — one per
+  stack area (language, framework, runtime, database, ORM, testing, build,
+  deployment, logging, configuration). Grade every row honestly.
+- breakingChanges: concrete breaking changes between the detected source
+  versions and the target (APIs removed/renamed, behavior changes).
+- dependencies: per-dependency findings — deprecated, unsupported, or
+  replaced libraries with their target equivalents.
+- codeChanges: language-level changes (types, generics, async, exceptions…).
+- configurationChanges: config file/format changes.
+- databaseChanges: ORM, query, migration-tooling changes.
+- securityChanges: auth/authn, secrets, headers, CORS changes.
+- testingChanges: test framework conversion and new tests needed.
+- deploymentChanges: container/CI/CD/platform changes.
+- observabilityChanges: logging, metrics, tracing, health checks.
+- performanceChanges: threading, pooling, caching implications.
+- risks: list of {{area, severity (red|yellow|green), why, whatBreaks,
+  solution, validation}}. Every red risk MUST explain all four: why it is
+  risky, what can break, the recommended solution, and how to validate.
+- recommendations: prioritized, concrete next steps.
+- migrationPhases: the incremental plan as ordered phases {{name,
+  description}}. Follow these 10 stages: 1 Understand application,
+  2 Analyze dependencies, 3 Identify incompatibilities, 4 Create migration
+  plan, 5 Convert individual components, 6 Generate target code,
+  7 Generate tests, 8 Static analysis, 9 Migration review, 10 Human approval.
+- validationStrategy: how to prove each phase worked.
+- rollbackStrategy: how to back out safely at each stage.
+- examples: short illustrative code/config snippets (source -> target).
+
+HARD RULES:
+- NEVER invent APIs, libraries, configuration properties, or framework behavior.
+- Prefer incremental migration; do not recommend a big-bang rewrite without a
+  technical reason grounded in the facts.
+- Consider security, performance, testing, deployment, and observability.
+- When the facts are thin (e.g. no framework detected), say what is unknown
+  instead of guessing.
+"""
+
 SYSTEM_PROMPT = """You are a Senior Software Architect, Technology Migration Expert, Code Conversion Expert, and Developer Learning Assistant.
 
 Your responsibilities:
