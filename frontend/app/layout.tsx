@@ -13,7 +13,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <nav className="topnav" aria-label="Main">
+          <a href="/">💬 Chat</a>
+          <a href="/compare">🔀 Compare</a>
+        </nav>
+        {children}
+      </body>
     </html>
   );
 }

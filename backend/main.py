@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.chat import router as chat_router
+from api.compare import router as compare_router
 
 
 def create_app() -> FastAPI:
@@ -17,6 +18,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(chat_router, prefix="/api")
+    app.include_router(compare_router, prefix="/api")
 
     @app.get("/")
     async def root():
