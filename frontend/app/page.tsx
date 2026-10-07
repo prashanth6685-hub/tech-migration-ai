@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { renderMarkdown } from "./components/markdown";
+import { API_URL } from "./lib/api";
 
 type Role = "user" | "assistant";
 
@@ -25,7 +26,6 @@ interface ChatEvent {
   error?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const SUGGESTION = "Explain Java streams to me as a C# developer";
 
 let nextId = 1;

@@ -7,8 +7,8 @@ import type { Catalog } from "../components/tech-picker";
 import { TechPicker } from "../components/tech-picker";
 import type { Citation } from "../components/grounding-badge";
 import { GroundingBadge } from "../components/grounding-badge";
+import { API_URL } from "../lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type Equivalence = "exact" | "conceptual" | "partial" | "none";
 

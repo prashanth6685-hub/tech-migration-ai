@@ -4,7 +4,12 @@ import json
 import httpx
 import pytest
 
-from llm.provider import AIProvider, OllamaProvider, OpenAIProvider, get_provider
+from llm.provider import (
+    AIProvider,
+    OllamaProvider,
+    OpenAICompatProvider,
+    get_provider,
+)
 
 
 # --- fakes ---------------------------------------------------------------
@@ -50,6 +55,46 @@ class _FakeClient:
 class _FailingClient:
     async def get(self, url):
         raise httpx.ConnectError("connection refused")
+
+
+class _OpenAIFakeClient:
+    """Mimics the httpx.AsyncClient subset OpenAICompatProvider uses."""
+
+    def __init__(self, lines=None, status=200, body=b""):
+        self._lines = lines or []
+        self.status_code = status
+        self._body = body
+        self.last_url = None
+        self.last_headers = None
+        self.last_payload = None
+
+    def stream(self, method, url, json=None, headers=None):
+        assert method == "POST"
+        self.last_url = url
+        self.last_headers = headers or {}
+        self.last_payload = json
+        return self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+    async def aread(self):
+        return self._body
+
+    async def aiter_lines(self):
+        for line in self._lines:
+            yield line
+
+    async def get(self, url, headers=None):
+        return httpx.Response(self.status_code, request=httpx.Request("GET", url))
+
+
+async def _drain(aiter):
+    async for _ in aiter:
+        pass
 
 
 def _ndjson(*contents, done=True):
@@ -111,15 +156,58 @@ def test_ollama_defaults():
     assert provider.model  # non-empty default model name
 
 
-# --- OpenAIProvider -------------------------------------------------------
+# --- OpenAICompatProvider -------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_openai_provider_is_unconfigured_stub():
-    provider = OpenAIProvider()
+async def test_openai_compat_streams_openai_sse(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_MODEL", "openai/gpt-oss-120b")
+    lines = [
+        'data: {"choices": [{"delta": {"content": "hello"}}]}',
+        "",
+        'data: {"choices": [{"delta": {"content": " world"}}]}',
+        "data: [DONE]",
+    ]
+    client = _OpenAIFakeClient(lines)
+    provider = OpenAICompatProvider(client=client)
     assert provider.name == "openai"
-    assert await provider.ping() is False
-    with pytest.raises(NotImplementedError, match="OPENAI_API_KEY"):
+    assert provider.model == "openai/gpt-oss-120b"
+    tokens = [
+        t
+        async for t in provider.chat_stream([{"role": "user", "content": "hi"}])
+    ]
+    assert tokens == ["hello", " world"]
+    assert client.last_url == "/chat/completions"
+    assert client.last_headers["Authorization"] == "Bearer test-key"
+    assert client.last_payload["model"] == "openai/gpt-oss-120b"
+    assert client.last_payload["stream"] is True
+    # system prompt is prepended as a system message
+    client2 = _OpenAIFakeClient(["data: [DONE]"])
+    provider2 = OpenAICompatProvider(client=client2)
+    await _drain(provider2.chat_stream([{"role": "user", "content": "hi"}], system="SYS"))
+    assert client2.last_payload["messages"][0] == {
+        "role": "system",
+        "content": "SYS",
+    }
+
+
+@pytest.mark.asyncio
+async def test_openai_compat_raises_on_missing_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    provider = OpenAICompatProvider(client=_OpenAIFakeClient([]), api_key=None)
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+        async for _ in provider.chat_stream([{"role": "user", "content": "hi"}]):
+            pass
+    assert await provider.ping() is False  # no key -> False, not an exception
+
+
+@pytest.mark.asyncio
+async def test_openai_compat_raises_on_http_error(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    client = _OpenAIFakeClient([], status=429, body=b"rate limited")
+    provider = OpenAICompatProvider(client=client)
+    with pytest.raises(RuntimeError, match="429"):
         async for _ in provider.chat_stream([{"role": "user", "content": "hi"}]):
             pass
 
@@ -135,7 +223,7 @@ def test_get_provider_defaults_to_ollama(monkeypatch):
 def test_get_provider_openai(monkeypatch):
     monkeypatch.setenv("AI_PROVIDER", "openai")
     provider = get_provider()
-    assert isinstance(provider, OpenAIProvider)
+    assert isinstance(provider, OpenAICompatProvider)
 
 
 def test_get_provider_rejects_unknown(monkeypatch):

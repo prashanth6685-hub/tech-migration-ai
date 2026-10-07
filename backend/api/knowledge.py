@@ -10,7 +10,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
-from rag.embeddings import Embedder, get_embedder
+from rag.embeddings import Embedder, EmbedderUnavailableError, get_embedder
 from rag.ingest import (
     MAX_MARKDOWN_CHARS,
     MAX_URLS_PER_REQUEST,
@@ -74,6 +74,18 @@ async def ingest_knowledge(
             doc_type=req.doc_type,
             embedder=embedder,
             store=store,
+        )
+    except EmbedderUnavailableError as exc:
+        # Embeddings are an optional capability: answer 503 with a fix, not a
+        # 500 traceback. (E.g. on Render with a Groq chat key there is no
+        # embeddings endpoint — Groq is chat-only.)
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"embeddings unavailable — {exc}. Set EMBEDDING_PROVIDER=openai "
+                "with an embeddings-capable endpoint (e.g. OpenAI's), or run "
+                "Ollama locally."
+            ),
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"ingestion failed: {exc}")

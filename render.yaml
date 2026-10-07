@@ -1,0 +1,66 @@
+# Tech Migration AI — Render blueprint (free tier).
+#
+# Deploy: https://render.com/deploy?repo=https://github.com/prashanth6685-hub/tech-migration-ai
+#
+# Ollama cannot run on Render free (512 MB RAM), so the backend uses a free
+# Groq API key through the OpenAI-compatible provider. Paste the key as
+# OPENAI_API_KEY in the Render dashboard after the first deploy.
+#
+# Not included on purpose:
+# - Qdrant: won't fit the free tier. The backend falls back to the in-memory
+#   vector store automatically (health reports vector_store: memory).
+# - Ollama: see above. Local docker-compose + Ollama path is unchanged.
+
+services:
+  # --- Backend: FastAPI (Docker) -----------------------------------------
+  - type: web
+    name: tech-migration-ai-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/health
+    envVars:
+      - key: AI_PROVIDER
+        value: openai
+      - key: OPENAI_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: OPENAI_MODEL
+        value: openai/gpt-oss-120b
+      - key: OPENAI_API_KEY
+        sync: false # <-- paste your free Groq key (console.groq.com) in the dashboard
+      - key: EMBEDDING_PROVIDER
+        value: openai
+      - key: OPENAI_EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: tech-migration-ai-frontend
+          property: host
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tech-migration-ai-db
+          property: connectionString
+
+  # --- Frontend: Next.js ---------------------------------------------------
+  - type: web
+    name: tech-migration-ai-frontend
+    runtime: node
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: tech-migration-ai-backend
+          property: host # bare host; frontend/app/lib/api.ts adds https://
+
+databases:
+  - name: tech-migration-ai-db
+    plan: free

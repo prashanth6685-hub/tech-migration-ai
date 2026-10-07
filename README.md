@@ -113,9 +113,48 @@ Frontend: `npm run build` (type-check + production build) must pass.
 ```bash
 AI_PROVIDER=openai OPENAI_API_KEY=sk-... uvicorn main:app
 ```
-The `AIProvider` interface is the seam: add new providers in
-`backend/llm/provider.py` without touching business logic. `OpenAIProvider`
-is currently a stub that raises until keys are configured.
+The `AIProvider` interface is the seam: new providers live in
+`backend/llm/provider.py` without touching business logic. `openai` now
+means any OpenAI-compatible chat API (OpenAI, Groq, Together, ...) —
+streaming over `/chat/completions` via `OPENAI_BASE_URL`.
+
+## Deploy to Render (free tier)
+
+Ollama can't run on Render free (512 MB RAM), so the hosted deployment uses
+a free Groq API key through the OpenAI-compatible provider. The local
+docker-compose + Ollama path is unchanged.
+
+### Steps
+
+1. Get a free API key at [console.groq.com](https://console.groq.com) (no
+   credit card needed).
+2. Click
+   [Deploy to Render](https://render.com/deploy?repo=https://github.com/prashanth6685-hub/tech-migration-ai).
+3. When Render asks for environment variables, paste your key as
+   `OPENAI_API_KEY` (it's `sync: false` in `render.yaml`, so it never lands
+   in the repo). Everything else is pre-filled:
+   - `AI_PROVIDER=openai`, `OPENAI_BASE_URL=https://api.groq.com/openai/v1`,
+     `OPENAI_MODEL=openai/gpt-oss-120b` (current Groq model — the old
+     `llama-3.3-70b-versatile` was retired by Groq in Aug 2026)
+   - `NEXT_PUBLIC_API_URL` is wired from the backend service automatically
+4. Wait for both services to go green, then open the frontend URL.
+
+### Free-tier things to know
+
+- **Sleep:** free services spin down after inactivity — the first load can
+  take up to a minute to wake up. That's normal.
+- **Knowledge-base ingest:** needs an embeddings-capable endpoint. Groq is
+  chat-only, so `POST /api/knowledge/ingest` answers **503** gracefully on
+  Render (not a crash) until you point `EMBEDDING_PROVIDER`/`OPENAI_BASE_URL`
+  at OpenAI's embeddings endpoint — or ingest docs locally with Ollama.
+  Compare/convert/learn still work, marked "ungrounded".
+- **No Qdrant service** on Render (won't fit free tier) — the backend falls
+  back to the in-memory vector store automatically; `/api/health` reports
+  `vector_store: memory`.
+- **Uploads are ephemeral:** `backend/data/projects/` isn't a Docker volume
+  yet — a container restart loses uploaded ZIPs. Postgres is provisioned in
+  `render.yaml` for the future move; the app runs fine without touching it
+  today.
 
 ## Phase 3: convert code
 

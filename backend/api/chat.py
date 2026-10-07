@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field
 
 from llm.prompts import SYSTEM_PROMPT
 from llm.provider import AIProvider, get_provider
+from rag.embeddings import embedding_provider_name
+from rag.vector_store import QdrantStore, VectorStore, get_vector_store
 
 router = APIRouter()
 
@@ -30,6 +32,8 @@ class HealthResponse(BaseModel):
     provider: str
     model: str
     ollama_reachable: bool
+    embedding_provider: str
+    vector_store: str  # "qdrant" when Qdrant is reachable, else "memory"
 
 
 @router.post("/chat")
@@ -58,10 +62,15 @@ async def chat(req: ChatRequest, provider: AIProvider = Depends(get_provider)):
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health(provider: AIProvider = Depends(get_provider)):
+async def health(
+    provider: AIProvider = Depends(get_provider),
+    store: VectorStore = Depends(get_vector_store),
+):
     return HealthResponse(
         status="ok",
         provider=provider.name,
         model=provider.model,
         ollama_reachable=await provider.ping(),
+        embedding_provider=embedding_provider_name(),
+        vector_store="qdrant" if isinstance(store, QdrantStore) else "memory",
     )

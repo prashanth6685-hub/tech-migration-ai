@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { API_URL } from "../lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type FileStatus = "untouched" | "pending" | "approved" | "rejected";
 type Equivalence = "exact" | "conceptual" | "partial" | "none";

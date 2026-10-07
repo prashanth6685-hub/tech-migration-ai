@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { Catalog } from "../../components/tech-picker";
 import { TechPicker } from "../../components/tech-picker";
+import { API_URL } from "../../lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 interface CollectionSummary {
   name: string;

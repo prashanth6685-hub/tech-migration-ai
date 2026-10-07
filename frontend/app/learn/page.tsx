@@ -7,8 +7,8 @@ import { TechPicker } from "../components/tech-picker";
 import { renderMarkdown } from "../components/markdown";
 import type { Citation } from "../components/grounding-badge";
 import { GroundingBadge } from "../components/grounding-badge";
+import { API_URL } from "../lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const PROFILE_KEY = "tmai-learn-profile";
 
 type Experience = "beginner" | "intermediate" | "advanced" | "expert";

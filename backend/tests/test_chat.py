@@ -90,4 +90,6 @@ def test_health_reports_provider_state():
         "provider": "fake",
         "model": "fake-model",
         "ollama_reachable": True,
+        "embedding_provider": "ollama",
+        "vector_store": "memory",  # Qdrant is unreachable in tests -> fallback
     }
