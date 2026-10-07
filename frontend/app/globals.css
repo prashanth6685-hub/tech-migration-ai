@@ -236,6 +236,12 @@ body {
   cursor: default;
 }
 
+.chip--active {
+  background: #e0e7ff;
+  border-color: #818cf8;
+  font-weight: 600;
+}
+
 /* ---------- Composer (pinned bottom) ---------- */
 
 .composer {

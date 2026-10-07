@@ -91,8 +91,159 @@ HARD RULES:
 """
 
 # ---------------------------------------------------------------------------
-# Phase 2 — Technology comparison task templates (prompt layer 2)
+# Phase 4 — Personalized learning task templates (prompt layer 2)
 # ---------------------------------------------------------------------------
+
+LEARN_PATH_TEMPLATE = """Generate a PERSONALIZED learning path for a developer who already
+knows these technologies and wants to learn the target. This must NOT be a
+generic course — every topic is anchored in what they already know.
+
+Developer already knows:
+{known_block}
+
+Wants to learn:
+Target technology: {target_tech}{target_version}
+Experience level: {experience}
+Learning goal: {goal_description}
+
+{skip_block}
+{EQUIVALENCE_GRADES}
+
+Return a path of ordered modules, from simple to production. For each topic:
+- title: the topic name in the target technology.
+- known_equivalent: what this maps to in the technology they already know
+  (e.g. "Java Streams" for a LINQ topic), or "" when there is no equivalent
+  they know — set new_in_target to true in that case.
+- new_in_target: true when the target has something genuinely new here that
+  does not map to their known stack.
+- estimated_minutes: realistic study time for this topic at their experience
+  level (a number, no ranges).
+
+Guiding example (Java + Spring Boot + Hibernate + Maven -> C# + .NET 8 +
+ASP.NET Core + EF Core): modules "C# fundamentals", "Java -> C# differences"
+(Streams->LINQ, CompletableFuture->Task, Maven->NuGet, annotations->attributes,
+records->records, getters/setters->properties), "ASP.NET Core", "EF Core",
+"Production" (Docker, logging, health checks, OpenTelemetry, CI/CD).
+
+Tailor depth to the goal: "understand basics" stays shallow and skips
+production modules; "become productive" covers everyday work deeply;
+"migrate an application" leads with differences and migration hazards;
+"become production-ready" goes deep on ops concerns; "interview preparation"
+emphasizes concepts interviewers ask about plus practice questions.
+
+HARD RULES:
+- Every topic must connect to their known stack via known_equivalent, or be
+  honestly marked new_in_target. Never a topic list that could have been
+  written without knowing what they already know.
+- Do not include topics that are 100% identical to what they already know
+  unless the target version of it has an important difference worth teaching.
+- Skip the listed already-known topics entirely — do not include them.
+- NEVER invent APIs, libraries, configuration properties, or framework behavior.
+- Respect the target version: do not teach features newer than it.
+"""
+
+LEARN_TOPIC_TEMPLATE = """Teach ONE topic to a developer who already knows {known_list}.
+
+Target technology: {target_tech}{target_version}
+Topic: {topic}
+Explanation level: {level} — {level_name}
+
+Level guide:
+- 1 Beginner: plain-language idea. Tiny examples, minimal jargon, assume they
+  know only the basics of their current stack.
+- 2 Developer: technical mechanics — how it works, types, syntax, common
+  patterns. Code-first.
+- 3 Experienced: contrast explicitly against what they already know from
+  {known_list}: what is the same, what is different, WHY it is different,
+  and what the target provides that their stack does not (or vice versa).
+- 4 Production: how this is actually used in a real system — configuration,
+  pitfalls, performance, observability, testing, security. Real patterns,
+  not textbook ones.
+
+Provide:
+1. topic and level_name (one of: Beginner, Developer, Experienced, Production).
+2. what_stays_same: what carries over from their known technology (empty string
+   if nothing does).
+3. what_changes: what is different in the target technology.
+4. why_different: why the target does it this way (design philosophy, history,
+   platform constraints — real reasons, not speculation).
+5. source_example: a short, correct code example in their known technology
+   (pick the most relevant of: {known_list}).
+6. target_example: the same idea in the target technology.
+7. idiomatic_target: how an experienced {target_tech} developer would normally
+   write it — may differ from target_example when the direct mapping is
+   unidiomatic.
+8. new_capabilities: target-only capabilities this topic unlocks.
+9. production_notes: at level 4 this is the heart of the lesson — how to run
+   this in production safely and observably. At lower levels, a brief note on
+   what production usage demands, or an empty string if nothing is notable.
+
+HARD RULES:
+- NEVER invent APIs, libraries, configuration properties, or framework behavior.
+- All code blocks must be complete and compilable-in-principle. No `...`
+  placeholders inside code.
+- Respect the target version.
+"""
+
+LEARN_EXERCISES_TEMPLATE = """Create practice exercises for a developer who knows {known_list}
+and is learning {target_tech}{target_version}.
+
+Topic: {topic}
+Level: {level} — {level_name}
+
+Return exactly 4 exercises, one of each kind:
+- basic: reinforce the core idea with a small, guided task.
+- intermediate: combine the topic with a nearby concept; some independent
+  thinking required.
+- production: a realistic task as it would appear in a production codebase
+  (error handling, config, edge cases matter).
+- migration: convert a short snippet from their known technology
+  ({known_list}) to the target technology — include the snippet in the prompt
+  so the exercise is self-contained.
+
+For each exercise: kind, title, prompt (clear instructions, includes any needed
+snippet), starter_code (optional scaffolding, empty string when not needed).
+
+HARD RULES: exercises must be solvable with real {target_tech} APIs —
+NEVER invent APIs or libraries.
+"""
+
+LEARN_REVIEW_TEMPLATE = """Review a developer's submitted solution.
+
+Target technology: {target_tech}{target_version}
+Exercise: {exercise_title}
+Exercise prompt:
+```
+{exercise_prompt}
+```
+
+Their solution:
+```
+{solution}
+```
+
+Provide:
+1. verdict: "correct" (works and is idiomatic), "partial" (works but has
+   issues, or close but broken), or "incorrect" (wrong approach or broken).
+2. correct_parts: what they got right — be specific, reference their code.
+3. incorrect_parts: what is wrong or missing — be specific. Empty list when
+   the solution is fully correct.
+4. better_implementation: a complete, correct, idiomatic {target_tech} version
+   of the solution — complete code, no `...` placeholders.
+5. best_practices: target-language best practices relevant to this exercise.
+
+Be encouraging but honest. NEVER invent APIs, libraries, or framework behavior.
+"""
+
+GOAL_DESCRIPTIONS = {
+    "basics": "Understand the basics of the target technology",
+    "productive": "Become productive with the target technology for daily work",
+    "migrate": "Migrate an application from the known stack to the target",
+    "production": "Become production-ready with the target technology",
+    "interview": "Prepare for interviews on the target technology",
+}
+
+LEVEL_NAMES = {1: "Beginner", 2: "Developer", 3: "Experienced", 4: "Production"}
 
 EQUIVALENCE_GRADES = """
 EQUIVALENCE GRADES — you MUST label every mapping honestly:

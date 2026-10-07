@@ -18,6 +18,7 @@ export default function RootLayout({
           <a href="/">💬 Chat</a>
           <a href="/compare">🔀 Compare</a>
           <a href="/convert">🔄 Convert</a>
+          <a href="/learn">🎓 Learn</a>
         </nav>
         {children}
       </body>

@@ -46,13 +46,18 @@ def extract_json(text: str) -> object:
     json.JSONDecodeError when no parseable object is found.
     """
     stripped = text.strip()
-    fence = _FENCE_RE.search(stripped)
-    if fence:
-        stripped = fence.group(1).strip()
+    # Try the whole body first: the model was asked for JSON only, and code
+    # fields inside valid JSON may legitimately contain ``` fences.
     try:
         return json.loads(stripped)
     except json.JSONDecodeError:
         pass
+    fence = _FENCE_RE.search(stripped)
+    if fence:
+        try:
+            return json.loads(fence.group(1).strip())
+        except json.JSONDecodeError:
+            pass
     # Fall back to the widest {...} span in the text.
     start = stripped.find("{")
     end = stripped.rfind("}")

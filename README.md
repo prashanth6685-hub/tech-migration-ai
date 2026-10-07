@@ -1,4 +1,4 @@
-# Tech Migration AI — Phase 3: Code Conversion
+# Tech Migration AI — Phase 4: Personalized Learning
 
 An AI migration and learning companion that understands what you already know.
 Phase 1 shipped a streaming chat UI (Next.js → FastAPI → local Ollama LLM).
@@ -147,11 +147,59 @@ Hard prompt rules: all four blocks must be complete, compilable-in-principle
 code — never `...` placeholders; never invent APIs; preserve behavior;
 respect the target version; flag constructs with no direct equivalent.
 
+## Phase 4: personalized learning
+
+Open http://localhost:3000/learn (top nav: 🎓 Learn).
+
+1. **Setup** — "I already know" (add one or more tech entries, e.g. Java 17 +
+   Spring Boot 3.2), "I want to learn" (e.g. C# .NET 8), your experience
+   (Beginner / Intermediate / Advanced / Expert), and your goal (understand
+   basics / become productive / migrate an application / become production-
+   ready / interview preparation). Hit **Generate my path**.
+2. **Path** — modules ordered simple → production, each topic showing what it
+   maps to in your known stack ("← you know: Java Streams"), a "new in target"
+   badge when there's no equivalent, and an estimated time. Every topic has a
+   **☑ I already know this** toggle — it collapses from the path and is
+   skipped when you regenerate. Known topics and your setup persist in the
+   browser (localStorage); the backend stays stateless (server-side profiles
+   are a later phase).
+3. **Lesson** — pick a topic and an explanation level (1 Beginner, 2
+   Developer, 3 Experienced, 4 Production). Level 3 explicitly contrasts the
+   concept against what you already know; level 4 teaches production usage.
+   Each lesson shows what stays the same / what changes / why, source and
+   target examples, and the idiomatic form.
+4. **Exercises** — per topic: basic, intermediate, production, and migration
+   exercises. Submit a solution and the AI reviews it: verdict (correct /
+   partial / incorrect), what you got right, what needs fixing, a better
+   implementation, and target-language best practices.
+
+API:
+- `POST /api/learn/path` — `{known:[{name,version?}], target_tech,
+  target_version?, experience, goal, skip_topics[]}` → `{path_title,
+  modules:[{title, why_this_module, topics:[{title, known_equivalent,
+  new_in_target, estimated_minutes}]}]}`.
+- `POST /api/learn/topic` — `{known, target_tech, target_version?, topic,
+  level:1|2|3|4}` → lesson JSON.
+- `POST /api/learn/exercises` — `{known, target_tech, target_version?, topic,
+  level}` → `{exercises:[{kind, title, prompt, starter_code?}]}`.
+- `POST /api/learn/review` — `{exercise_title, exercise_prompt, target_tech,
+  solution}` → `{verdict, correct_parts[], incorrect_parts[],
+  better_implementation, best_practices[]}`.
+
+Every path topic is anchored in the developer's known stack — never a generic
+course. Topics the developer already knows are excluded server-side via
+`skip_topics`.
+
+Try the acceptance flow: known = Java + Spring Boot, target = C# (.NET 8),
+goal = "become productive" → expect a path with a "Java → C# differences"
+module; open the LINQ topic at level 3 → expect Streams contrast; submit an
+exercise solution → expect a structured review.
+
 ## What's coming next
 
-Phase 4 — personalized learning: existing/target tech, skill level, goals,
-curriculum, exercises, knowledge tracking.
-Then: RAG over official docs (Phase 5), repository analysis (Phase 6),
-automated migration with human approval (Phase 7).
+Phase 5 — RAG over official docs (ingestion, embeddings, vector DB, hybrid
+retrieval, citations).
+Then: repository analysis (Phase 6), automated migration with human approval
+(Phase 7).
 
 See the full plan: `~/workspace/your_files/tech-migration-ai-plan/tech-migration-ai-plan.pdf`.
