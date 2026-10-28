@@ -52,7 +52,7 @@ services:
     healthCheckPath: /
     envVars:
       - key: NODE_VERSION
-        value: "22"
+        value: "22.23.4"
       - key: NEXT_PUBLIC_API_URL
         # Explicit public URL (baked into the client bundle at build time).
         # fromService "host" returns the internal-only service name, which
